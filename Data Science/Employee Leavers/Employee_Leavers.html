@@ -192,7 +192,7 @@ p90 &lt;- sum(hrData[which(hrData$P_Leave &gt;= 0.9), &quot;LEAVE_FLAG&quot;])/
       length(hrData[which(hrData$P_Leave &gt;= 0.9), &quot;LEAVE_FLAG&quot;]) * 100
 p70 &lt;- sum(hrData[which(hrData$P_Leave &gt;= 0.7), &quot;LEAVE_FLAG&quot;])/
       length(hrData[which(hrData$P_Leave &gt;= 0.7), &quot;LEAVE_FLAG&quot;]) * 100</code></pre>
-<p>Out of employees with a predicted leave likelihood of 0.9 or greater, <strong>92.4%</strong> did in fact leave. Similarly, <strong>88.6%</strong> left out of the group taken for 0.7 or higher.</p>
+<p>Out of employees with a predicted leave likelihood of 0.9 or greater, <strong>92.4%</strong> did in fact leave. Similarly, <strong>88.6%</strong> left out of the group taken for 0.7 or higher. This suggests that our model works well at high values of <span class="math">\(P_L\)</span> but is underestimating the probability as <span class="math">\(P_L\)</span> comes down.</p>
 </div>
 </div>
 <div id="appendix" class="section level2">
