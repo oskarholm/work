@@ -165,13 +165,15 @@ following compares the effectiveness of the model for employees with $P_L > 0.9$
 hrData$P_Leave <- y_fit
 
 p90 <- sum(hrData[which(hrData$P_Leave >= 0.9), "LEAVE_FLAG"])/
-      length(hrData[which(hrData$P_Leave >= 0.9), "LEAVE_FLAG"])
+      length(hrData[which(hrData$P_Leave >= 0.9), "LEAVE_FLAG"]) * 100
 p70 <- sum(hrData[which(hrData$P_Leave >= 0.7), "LEAVE_FLAG"])/
-      length(hrData[which(hrData$P_Leave >= 0.7), "LEAVE_FLAG"])
+      length(hrData[which(hrData$P_Leave >= 0.7), "LEAVE_FLAG"]) * 100
 ```
 Out of employees with a predicted leave likelihood of 0.9 or greater, 
-**`r format(p90, digits = 3)`**% did in fact leave. Similarly, 
-**`r format(p70, digits = 3)`**% left out of the group taken for 0.7 or higher.
+**`r format(p90, digits = 3)`%** did in fact leave. Similarly, 
+**`r format(p70, digits = 3)`%** left out of the group taken for 0.7 or higher.
+This suggests that our model works well at high values of $P_L$ but is 
+underestimating the probability as $P_L$ comes down.
 
 ## Appendix
 ### 1 - SQL for data extract
