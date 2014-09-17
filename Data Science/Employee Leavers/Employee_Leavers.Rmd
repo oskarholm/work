@@ -42,6 +42,7 @@ Additionally, some data tidying is done:
 - Converting salary into £k
 - Removing employee records with anomalously high salaries
 - Converting length of service into years
+- Normalise variables
 
 ```{r Data Tidying}
 hrData$SALARY <- hrData$SALARY/1000
@@ -49,9 +50,14 @@ hrData <- hrData[which(hrData$SALARY < 2000),]
 hrData$SERVICE_YEARS <- round(hrData$SERVICE_DAYS/365,2)
 hrData$WEEKLY_HOURS <- hrData$HOURS
 hrData <- hrData[which(!is.na(hrData$WEEKLY_HOURS)),]
+
+hrData$SALARYn <- (hrData$SALARY - mean(hrData$SALARY))/sd(hrData$SALARY)
+hrData$AGEn <- (hrData$AGE - mean(hrData$AGE))/sd(hrData$AGE)
+hrData$WEEKLY_HOURSn <- (hrData$WEEKLY_HOURS - mean(hrData$WEEKLY_HOURS))/sd(hrData$WEEKLY_HOURS)
+hrData$SERVICE_YEARSn <- (hrData$SERVICE_YEARS - mean(hrData$SERVICE_YEARS))/sd(hrData$SERVICE_YEARS)
 ```
 
-Then a logistic regression model was applied using all selected variables:
+Then a logistic regression model was applied using all normalised variables:
 
 - Salary
 - Years of Service
@@ -59,10 +65,10 @@ Then a logistic regression model was applied using all selected variables:
 - Weekly Hours
 
 ```{r Fit of All Variables, warning=FALSE}
-model0 <- glm(LEAVE_FLAG ~ SALARY + 
-                      SERVICE_YEARS + 
-                      AGE + 
-                      WEEKLY_HOURS, data = hrData, family = "binomial")
+model0 <- glm(LEAVE_FLAG ~ SALARYn + 
+                      SERVICE_YEARSn + 
+                      AGEn + 
+                      WEEKLY_HOURSn, data = hrData, family = "binomial")
 rawCoefs0 <- summary(model0)$coefficients
 expCoefs0 <- exp(model0$coefficients)
 
@@ -77,11 +83,11 @@ For these reasons it will be excluded from the rest of the study.
 
 Below is the model applied again, with salary removed.
 
-```{r Best Model Fit, warning=FALSE, message=FALSE}
+```{r Normalised Model Fit, warning=FALSE, message=FALSE}
 model1 <- glm(LEAVE_FLAG ~ 
-                      SERVICE_YEARS + 
-                      AGE + 
-                      WEEKLY_HOURS, data = hrData, family = "binomial")
+                      SERVICE_YEARSn + 
+                      AGEn + 
+                      WEEKLY_HOURSn, data = hrData, family = "binomial")
 rawCoefs1 <- summary(model1)$coefficients
 print(rawCoefs1)
 expCoefs1 <- exp(model1$coefficients)
@@ -92,17 +98,31 @@ print(confInts1)
 
 ## Results
 
+As the variables have all been normalised, interpreting the coefficients can be 
+difficult. The model will be run against the original variables for purely this
+purpose.
+
+```{r Original Model Fit, warning=FALSE, message=FALSE}
+model2 <- glm(LEAVE_FLAG ~ 
+                      SERVICE_YEARS + 
+                      AGE + 
+                      WEEKLY_HOURS, data = hrData, family = "binomial")
+rawCoefs2 <- summary(model2)$coefficients
+expCoefs2 <- exp(model2$coefficients)
+confInts2 <- exp(confint(model2))
+```
+
 We can interpret the coefficients of this model to mean the following:
 
 - For each additional year in service, the employee is 
-**`r format((1-expCoefs1[2])*100, digits = 3)` $\pm$
-`r format((expCoefs1[2]-confInts1[2])*100, digits = 2)`% less** likely to leave.
+**`r format((1-expCoefs2[2])*100, digits = 3)` $\pm$
+`r format((expCoefs2[2]-confInts2[2])*100, digits = 2)`% less** likely to leave.
 - For every year older, the employee is 
-**`r format((1-expCoefs1[3])*100, digits = 3)` $\pm$
-`r format((expCoefs1[3]-confInts1[3])*100, digits = 2)`% less** likely to leave.
+**`r format((1-expCoefs2[3])*100, digits = 3)` $\pm$
+`r format((expCoefs2[3]-confInts2[3])*100, digits = 2)`% less** likely to leave.
 - For every additional weekly hour, the employee is 
-**`r format((1-expCoefs1[4])*100, digits = 3)` $\pm$
-`r format((expCoefs1[4]-confInts1[4])*100, digits = 2)`% less** likely to leave.
+**`r format((1-expCoefs2[4])*100, digits = 3)` $\pm$
+`r format((expCoefs2[4]-confInts2[4])*100, digits = 2)`% less** likely to leave.
 
 Additionally, the probability of an employee leaving, based on this parameters,
 is given by:
@@ -135,9 +155,9 @@ beta1 <- summary(model1)$coefficients[2]
 beta2 <- summary(model1)$coefficients[3]
 beta3 <- summary(model1)$coefficients[4]
 
-x1 <- hrData$SERVICE_YEARS
-x2 <- hrData$AGE
-x3 <- hrData$WEEKLY_HOURS
+x1 <- hrData$SERVICE_YEARSn
+x2 <- hrData$AGEn
+x3 <- hrData$WEEKLY_HOURSn
 
 gamma <- beta0 + beta1*x1 + beta2*x2 + beta3*x3
 
