@@ -1,0 +1,210 @@
+---
+title: "Why Do Employees Leave?"
+author: "Minesh Patel"
+date: "16 September 2014"
+output: html_document
+---
+### Prerequisite Libraries
+```{r Libraries}
+library(ggplot2)
+```
+
+
+## Summary
+This is an investigation into possible predictor variables to indicate whether 
+or not an employee is likely to leave the organisation. The investigation uses 
+a sample dataset originally from the Oracle Vision EBS database. This has then
+been pre-processed using Oracle BI Applications HR module (version 7.9.6.4). The
+methodology used in this investigation can be reproduced on any OBIA HR dataset
+and ideally will be modified based on the outcomes. 
+
+The investigation concludes that the most statistically significant predictors
+(out of the limited predictors tested) are:
+
+- Years in Service
+- Age
+- Weekly Hours
+
+The stastitical significance and amplitude of the expected effects are detailed
+later, in the Results section.
+
+## Exploratory Analysis
+Firstly, the data was loaded. In this case, a CSV extract was used. The SQL for
+the extract is found in Appendix 1. This could be extracted directly from the
+the Oracle database using ORE.
+
+```{r Data Load}
+hrData <- read.csv("HR_Extract_Emp.csv")
+```
+
+Additionally, some data tidying is done:
+
+- Converting salary into £k
+- Removing employee records with anomalously high salaries
+- Converting length of service into years
+
+```{r Data Tidying}
+hrData$SALARY <- hrData$SALARY/1000
+hrData <- hrData[which(hrData$SALARY < 2000),]
+hrData$SERVICE_YEARS <- round(hrData$SERVICE_DAYS/365,2)
+hrData$WEEKLY_HOURS <- hrData$HOURS
+hrData <- hrData[which(!is.na(hrData$WEEKLY_HOURS)),]
+```
+
+Then a logistic regression model was applied using all selected variables:
+
+- Salary
+- Years of Service
+- Age
+- Weekly Hours
+
+```{r Fit of All Variables, warning=FALSE}
+model0 <- glm(LEAVE_FLAG ~ SALARY + 
+                      SERVICE_YEARS + 
+                      AGE + 
+                      WEEKLY_HOURS, data = hrData, family = "binomial")
+rawCoefs0 <- summary(model0)$coefficients
+expCoefs0 <- exp(model0$coefficients)
+
+print(rawCoefs0)
+```
+
+The z-test coefficients are compared to a p < 0.1 threshold, deemed suitable for
+this study. Only salary has a p value outside of this range with: 
+**`r format(rawCoefs0[17], digits=3)`**. Additionally, the (exponential of) the
+estimated gradient is: **`r format(expCoefs0[2], digits=3)`**, very close to 1. 
+For these reasons it will be excluded from the rest of the study. 
+
+Below is the model applied again, with salary removed.
+
+```{r Best Model Fit, warning=FALSE, message=FALSE}
+model1 <- glm(LEAVE_FLAG ~ 
+                      SERVICE_YEARS + 
+                      AGE + 
+                      WEEKLY_HOURS, data = hrData, family = "binomial")
+rawCoefs1 <- summary(model1)$coefficients
+print(rawCoefs1)
+expCoefs1 <- exp(model1$coefficients)
+print(expCoefs1)
+confInts1 <- exp(confint(model1))
+print(confInts1)
+```
+
+## Results
+
+We can interpret the coefficients of this model to mean the following:
+
+- For each additional year in service, the employee is 
+**`r format((1-expCoefs1[2])*100, digits = 3)` $\pm$
+`r format((expCoefs1[2]-confInts1[2])*100, digits = 2)`% less** likely to leave.
+- For every year older, the employee is 
+**`r format((1-expCoefs1[3])*100, digits = 3)` $\pm$
+`r format((expCoefs1[3]-confInts1[3])*100, digits = 2)`% less** likely to leave.
+- For every additional weekly hour, the employee is 
+**`r format((1-expCoefs1[4])*100, digits = 3)` $\pm$
+`r format((expCoefs1[4]-confInts1[4])*100, digits = 2)`% less** likely to leave.
+
+Additionally, the probability of an employee leaving, based on this parameters,
+is given by:
+
+```{r Format Coefficients, include=FALSE}
+betaF <- 0
+betaF[1] <- format(rawCoefs1[1], digits = 2)
+betaF[2] <- format(rawCoefs1[2], digits = 2)
+betaF[3] <- format(rawCoefs1[3], digits = 2)
+betaF[4] <- format(rawCoefs1[4], digits = 2)
+```
+
+$$P(x_1, x_2, x_3)=P_L=\frac{e^\gamma}{1 + e^\gamma} \\$$
+$$
+\begin{align}
+\gamma & =\beta_0 + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_3 \\
+& =`r betaF[1]` + `r betaF[2]` x_1 + `r betaF[3]` x_2 + `r betaF[4]` x_3
+\end{align}
+$$
+
+where $x_1$ is years of service, $x_2$ is age and $x_3$ is the employee's
+weekly hours.
+
+### Plot
+Below is a plot showing the fit against the observed values.
+
+```{r Plot Fit}
+beta0 <- summary(model1)$coefficients[1]
+beta1 <- summary(model1)$coefficients[2]
+beta2 <- summary(model1)$coefficients[3]
+beta3 <- summary(model1)$coefficients[4]
+
+x1 <- hrData$SERVICE_YEARS
+x2 <- hrData$AGE
+x3 <- hrData$WEEKLY_HOURS
+
+gamma <- beta0 + beta1*x1 + beta2*x2 + beta3*x3
+
+y_fit <- exp(gamma) / (1 + exp(gamma))
+y_obs <- hrData$LEAVE_FLAG
+
+plotDF <- data.frame(gamma = gamma, y_obs = y_obs, y_fit = y_fit)
+g <-  ggplot() + 
+      geom_point(data = plotDF, aes(x = gamma, y = y_obs, col = "1"), 
+                 alpha = 0.1) + 
+      geom_line(data = plotDF, aes(x = gamma, y = y_fit, col = "2")) + 
+      labs(title=expression(bold("Fit against Observed Values")),
+           x=expression(beta[0]+x[1]*beta[1]+x[2]*beta[2]+x[3]*beta[3]), 
+           y="Probability of Leaving") +
+      scale_colour_manual(name = "Plot",
+                          values =c('black', 'red'), 
+                          labels = c('Observed', 'Fit'))
+plot(g)
+```
+
+### Prediction Results
+The graph above doesn't immediately indicate the effectiveness of the model. The
+following compares the effectiveness of the model for employees with $P_L > 0.9$
+```{r Prediction Effectiveness}
+hrData$P_Leave <- y_fit
+
+p90 <- sum(hrData[which(hrData$P_Leave >= 0.9), "LEAVE_FLAG"])/
+      length(hrData[which(hrData$P_Leave >= 0.9), "LEAVE_FLAG"])
+p70 <- sum(hrData[which(hrData$P_Leave >= 0.7), "LEAVE_FLAG"])/
+      length(hrData[which(hrData$P_Leave >= 0.7), "LEAVE_FLAG"])
+```
+Out of employees with a predicted leave likelihood of 0.9 or greater, 
+**`r format(p90, digits = 3)`**% did in fact leave. Similarly, 
+**`r format(p70, digits = 3)`**% left out of the group taken for 0.7 or higher.
+
+## Appendix
+### 1 - SQL for data extract
+```
+select
+MAX(Dayd.CALENDAR_DATE) AS CAL_DATE,
+MAX(Emp.FULL_NAME) AS FULL_NAME,
+Emp.INTEGRATION_ID AS EMP_NUM,
+MAX(Wkfc.SALARY_ANNL) AS SALARY, 
+MAX(CURRENT_SERVICE_DAYS) AS SERVICE_DAYS, 
+MAX(EMP_POW_BAND_DESC) AS PERIOD_OF_WORK_BAND,
+MAX(ROUND(AGE_IN_MONTHS/12,0)) AS AGE,
+MAX(AGE_BAND_DESC) AS AGE_BAND,
+MAX(Wkfc.TERM_EVENT_IND) AS LEAVE_FLAG,
+MAX(STD_HOURS_MONTH) AS HOURS,
+MAX(Dayd.CALENDAR_DATE - JOB_ENTRY_DT) AS DAYS_IN_JOB,
+MAX(Dayd.CALENDAR_DATE - POS_ENTRY_DT) AS DAYS_IN_POS,
+MAX(Dayd.CALENDAR_DATE - ORG_ENTRY_DT) AS DAYS_IN_ORG
+from
+W_WRKFC_EVT_MONTH_F Wkfc,
+W_EMPLOYEE_D Emp,
+W_DAY_D Dayd,
+W_AGE_BAND_D Age_Band,
+W_PRD_OF_WRK_BAND_D Period_Wrk
+WHERE
+Wkfc.EMPLOYEE_WID = Emp.ROW_WID AND
+TRUNC(Wkfc.EFFECTIVE_START_DATE) = TRUNC(Dayd.CALENDAR_DATE) AND
+Wkfc.AGE_BAND_WID = Age_Band.ROW_WID AND
+Wkfc.PRD_OF_WRK_BAND_WID = Period_Wrk.ROW_WID AND
+Dayd.CAL_YEAR BETWEEN 2001 AND 2009
+GROUP BY 
+Dayd.CAL_YEAR,
+Emp.INTEGRATION_ID
+ORDER BY
+Emp.INTEGRATION_ID;
+```
