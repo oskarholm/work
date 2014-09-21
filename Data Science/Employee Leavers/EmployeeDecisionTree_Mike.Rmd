@@ -1,0 +1,47 @@
+# Why do employees leave? 
+
+```{r, message=FALSE, warning=FALSE}
+setwd("/Users/michaelstanhope/datascience/work/Data Science/Employee Leavers")
+set.seed(1)
+# Load Data
+hrData <- read.csv("HR_Extract_Emp.csv")
+
+# Convert salary to £k and filter anomalously high salaried employees
+hrData$SALARY <- hrData$SALARY/1000
+hrData <- hrData[which(hrData$SALARY < 2000),]
+
+library(caret)
+inHr <- createDataPartition(hrData$LEAVE_FLAG, p=0.6, list=FALSE)
+training <- hrData[inHr,]
+validation <- hrData[-inHr,]
+
+training$LEAVE_FLAG <- as.factor(training$LEAVE_FLAG)
+training<-training[,c("SALARY",    
+                      "SERVICE_DAYS",    
+                      "AGE",	
+                      "LEAVE_FLAG",	
+                      "HOURS",	
+                      "DAYS_IN_JOB",	
+                      "DAYS_IN_POS",	
+                      "DAYS_IN_ORG")]
+
+modFit <- train(LEAVE_FLAG ~ ., method="rpart", data=training)
+
+library(rattle)
+library(rpart.plot)
+fancyRpartPlot(modFit$finalModel)
+```
+
+### In-sample error 
+
+```{r}
+confusionMatrix(training$LEAVE_FLAG, predict(modFit, training, na.action=na.pass))
+```
+
+### Out-of-sample error
+
+```{r}
+confusionMatrix(validation$LEAVE_FLAG, predict(modFit, validation, na.action=na.pass))
+```
+
+
